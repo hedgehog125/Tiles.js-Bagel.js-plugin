@@ -1,5 +1,6 @@
 {
     // TODO: Idle animation support
+    // Use subtiles for wire variants
     info: {
         id: "Tiles",
         description: "A flexible tile engine for Bagel.js"
@@ -28,6 +29,52 @@
                             required: true,
                             types: ["string"],
                             description: "The id of the spritesheet to use for the tiles. (excluding the dot)"
+                        },
+                        tileProperties: {
+                            required: false,
+                            default: {},
+                            types: ["object"],
+                            check: (value, sprite, name, game, prev, args) => {
+                                for (let i in value) {
+                                    Bagel.check({
+                                        ob: value[i],
+                                        where: args.where + "." + i,
+                                        syntax: {
+                                            hitbox: {
+                                                required: false,
+                                                default: [],
+                                                subcheck: {
+                                                    x: {
+                                                        required: true,
+                                                        types: ["number"],
+                                                        description: "The x offset of this hitbox in tiles from the top left corner."
+                                                    },
+                                                    y: {
+                                                        required: true,
+                                                        types: ["number"],
+                                                        description: "The x offset of this hitbox in tiles from the top left corner."
+                                                    },
+                                                    width: {
+                                                        required: true,
+                                                        types: ["number"],
+                                                        description: "The width of this hitbox in tiles."
+                                                    },
+                                                    height: {
+                                                        required: true,
+                                                        types: ["number"],
+                                                        description: "The height of this hitbox in tiles."
+                                                    }
+                                                },
+                                                checkEach: true,
+                                                types: ["array"],
+                                                description: "The hitbox for the tile. It's an array of rectangles and their positions relative to the tile in tiles, along with their widths and heights in tiles. There can be multiple hitboxes for each tile."
+                                            }
+                                        }
+                                    }, Bagel.internal.checks.disableArgCheck, true);
+                                }
+                                // The properties for unspecified tiles are added later
+                            },
+                            description: "Contains the properties of the different tiles."
                         },
                         levelPrefix: {
                             required: true,
@@ -116,7 +163,7 @@
                     check: sprite => { // This isn't actually checking anything, it just creates the scripts needed
                         sprite.scripts.init.push({
                             code: me => {
-                                let camera = sprite.levels[sprite.level].start.camera;
+                                let camera = me.levels[me.level].start.camera;
                                 me.camera = {
                                     x: camera.x,
                                     y: camera.y,
@@ -127,7 +174,30 @@
                                     x: camera.x,
                                     y: camera.y
                                 };
-                                me.internal.prerender(me);
+
+                                // Add in the properties for the tiles that were unspecified now everything's loaded
+                                let tilesheet = Bagel.get.asset.spritesheet(me.tilesheet);
+                                let y = 0;
+                                while (y < tilesheet.animations.length) {
+                                    let x = 0;
+                                    while (x < tilesheet.frames[y]) {
+                                        let tileID = tilesheet.animations[y] + "." + x;
+                                        if (me.tileProperties[tileID] == null) {
+                                            me.tileProperties[tileID] = {
+                                                hitbox: [{
+                                                    x: 0,
+                                                    y: 0,
+                                                    width: 1,
+                                                    height: 1
+                                                }]
+                                            };
+                                        }
+                                        x++;
+                                    }
+                                    y++;
+                                }
+
+                                me.internal.prerender(me); // Prerender the tiles
                             },
                             stateToRun: sprite.state
                         });
@@ -140,7 +210,7 @@
                                 let targetZoom = Math.max(game.width, game.height) / Math.min(me.internal.canvas.width, me.internal.canvas.height);
                                 if (camera.zoom != targetZoom) {
                                     if (camera.zoom > targetZoom) {
-                                        camera.zoomVel -= 0.1;
+                                        camera.zoomVel -= 0.05;
                                         camera.zoom += camera.zoomVel;
                                         camera.zoomVel *= 0.95;
                                         if (camera.zoom <= targetZoom) { // Past it
@@ -149,7 +219,7 @@
                                         }
                                     }
                                     else {
-                                        camera.zoomVel += 0.1;
+                                        camera.zoomVel += 0.05;
                                         camera.zoom += camera.zoomVel;
                                         camera.zoomVel *= 0.95;
                                         if (camera.zoom >= targetZoom) { // Past it
@@ -214,6 +284,9 @@
                                 ctx.drawImage(tile, x * me.tileResolution, y * me.tileResolution, me.tileResolution, me.tileResolution);
                                 i += 4;
                             }
+
+                            me.width = img.width;
+                            me.height = img.height;
                             me.tiles = tiles;
                         };
                     },
@@ -341,6 +414,43 @@
                                 sprite.x = level.start.player.x;
                                 sprite.y = level.start.player.y;
                                 sprite.img = sprite.imgPrefix + "." + sprite.animations.idle.prefix + ".0";
+
+                                me.vars.touchingGround = me => {
+                                    let x = (me.x + (me.tileEngine.width / 2)) - (me.width / 2);
+                                    let y = me.y + (me.tileEngine.height / 2);
+
+                                    let i = 0;
+                                    while (i < me.width) {
+                                        if (me.vars.touchingTile(me, Math.round(x + i), Math.round(y + (me.height / 2)), x + i, y - (me.height / 2))) {
+                                            return true;
+                                        }
+                                        i++;
+                                    }
+                                    return false;
+                                };
+                                me.vars.touchingTile = (me, x, y, leftX, leftY) => {
+                                    let tileID = me.tileEngine.tiles[x + "," + y];
+                                    if (tileID == null) { // No tile
+                                        return false;
+                                    }
+                                    let tile = me.tileEngine.tileProperties[tileID];
+                                    for (let i in tile.hitbox) {
+                                        let box = tile.hitbox[i];
+                                        let boxX = x + box.x;
+                                        let boxY = y + box.y;
+
+                                        if (boxX < leftX + me.width) {
+                                            if (boxX + box.width > leftX) {
+                                                if (boxY < leftY + me.height) {
+                                                    if (boxY + box.height > leftY) {
+                                                        return true;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    return false;
+                                };
                             },
                             stateToRun: sprite.state
                         });
@@ -353,13 +463,17 @@
                         sprite.scripts.steps["Tile.js physics"] = me => {
                             if (me.physics.enable) {
                                 let onGround;
-                                if (true) {
-                                    me.vel.y += me.physics.gravity;
-                                    onGround = false;
-                                }
-                                else {
+                                if (me.vars.touchingGround(me)) {
                                     me.vel.y = 0;
                                     onGround = true;
+                                    while (me.vars.touchingGround(me)) {
+                                        me.y -= me.tileEngine.tileResolution;
+                                    }
+                                    me.y += me.tileEngine.tileResolution;
+                                }
+                                else {
+                                    me.vel.y += me.physics.gravity;
+                                    onGround = false;
                                 }
 
                                 let res = me.tileEngine.tileResolution;
@@ -409,8 +523,8 @@
 
                             ctx.drawImage(
                                 img,
-                                (((game.width - width) / 2) + (sprite.x * res) - (camera.x * res)) * flipX,
-                                (((game.height - height) / 2) + (sprite.y * res) - (camera.y * res)) * flipY,
+                                (((game.width - width) / 2) + (sprite.x * res * camera.zoom) - (camera.x * res)) * flipX,
+                                (((game.height - height) / 2) + (sprite.y * res * camera.zoom) - (camera.y * res)) * flipY,
                                 width,
                                 height
                             );

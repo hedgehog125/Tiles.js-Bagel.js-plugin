@@ -30,6 +30,11 @@ let game = Bagel.init({
                 type: "tileEngine",
                 state: "game",
                 tilesheet: "Tiles",
+                tileProperties: {
+                    "0.0": {
+                        hitbox: []
+                    }
+                },
                 level: 0,
                 levels: [
                     {
@@ -56,7 +61,7 @@ let game = Bagel.init({
                     }
                 },
                 physics: {
-                    gravity: 1,
+                    gravity: 0.2,
                     friction: 0.8,
                     airResistance: 0.95
                 }
