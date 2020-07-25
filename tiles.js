@@ -1,6 +1,6 @@
 {
     // TODO: Idle animation support
-    // Use subtiles for wire variants
+    // Multiple keys per action
     info: {
         id: "Tiles",
         description: "A flexible tile engine for Bagel.js"
@@ -381,6 +381,98 @@
                                     required: true,
                                     types: ["number"],
                                     description: "The amount to multiply the x and y velocities by to create air resistance. Higher numbers mean less resistance. You probably shouldn't set it above 1."
+                                },
+                                controls: {
+                                    required: true,
+                                    subcheck: {
+                                        speed: {
+                                            required: true,
+                                            types: ["number"],
+                                            description: "The speed that the character accelerates and moves when a horizontal direction is pressed."
+                                        },
+                                        keys: {
+                                            required: false,
+                                            default: {},
+                                            subcheck: {
+                                                up: {
+                                                    required: false,
+                                                    default: 87,
+                                                    types: [
+                                                        "number",
+                                                        "string"
+                                                    ],
+                                                    check: (value, ob, name, game) => {
+                                                        if (typeof value == "string") {
+                                                            if (game.input.lookup[value] == null) {
+                                                                console.log(game.input.lookup);
+                                                                return "Oops, I don't know that key :/ Have a look at the keys in that lookup object or try using an ASCII code. You tried to use " + JSON.stringify(value) + ".";
+                                                            }
+                                                            ob[name] = game.input.lookup[value];
+                                                        }
+                                                    },
+                                                    description: "The key for the up action. Can be an ASCII code or a named key (if it's in game.input.lookup)."
+                                                },
+                                                down: {
+                                                    required: false,
+                                                    default: 83,
+                                                    types: [
+                                                        "number",
+                                                        "string"
+                                                    ],
+                                                    check: (value, ob, name, game) => {
+                                                        if (typeof value == "string") {
+                                                            if (game.input.lookup[value] == null) {
+                                                                console.log(game.input.lookup);
+                                                                return "Hmm, I don't know that key :/ Have a look at the keys in that lookup object or try using an ASCII code. You tried to use " + JSON.stringify(value) + ".";
+                                                            }
+                                                            ob[name] = game.input.lookup[value];
+                                                        }
+                                                    },
+                                                    description: "The key for the down action. Can be an ASCII code or a named key (if it's in game.input.lookup)."
+                                                },
+                                                left: {
+                                                    required: false,
+                                                    default: 65,
+                                                    types: [
+                                                        "number",
+                                                        "string"
+                                                    ],
+                                                    check: (value, ob, name, game) => {
+                                                        if (typeof value == "string") {
+                                                            if (game.input.lookup[value] == null) {
+                                                                console.log(game.input.lookup);
+                                                                return "Erm, I don't know that key :/ Have a look at the keys in that lookup object or try using an ASCII code. You tried to use " + JSON.stringify(value) + ".";
+                                                            }
+                                                            ob[name] = game.input.lookup[value];
+                                                        }
+                                                    },
+                                                    description: "The key for the left action. Can be an ASCII code or a named key (if it's in game.input.lookup)."
+                                                },
+                                                right: {
+                                                    required: false,
+                                                    default: 68,
+                                                    types: [
+                                                        "number",
+                                                        "string"
+                                                    ],
+                                                    check: (value, ob, name, game) => {
+                                                        if (typeof value == "string") {
+                                                            if (game.input.lookup[value] == null) {
+                                                                console.log(game.input.lookup);
+                                                                return "Huh, I don't know that key :/ Have a look at the keys in that lookup object or try using an ASCII code. You tried to use " + JSON.stringify(value) + ".";
+                                                            }
+                                                            ob[name] = game.input.lookup[value];
+                                                        }
+                                                    },
+                                                    description: "The key for the right action. Can be an ASCII code or a named key (if it's in game.input.lookup)."
+                                                }
+                                            },
+                                            types: ["object"],
+                                            description: "The keys and keycodes for different actions. Defaults to WASD."
+                                        }
+                                    },
+                                    types: ["object"],
+                                    description: "Some options for in-game controls."
                                 }
                             },
                             types: ["object"],
@@ -456,10 +548,23 @@
                         });
                         sprite.scripts.main.push({
                             code: (me, game, step) => {
+                                step("Tile.js controls");
                                 step("Tile.js physics");
                             },
                             stateToRun: sprite.state
                         });
+                        sprite.scripts.steps["Tile.js controls"] = me => {
+                            let isDown = game.input.keys.isDown;
+                            let controls = me.physics.controls;
+                            let controlKeys = controls.keys;
+
+                            if (isDown(controlKeys.left)) {
+                                me.vel.x -= controls.speed;
+                            }
+                            if (isDown(controlKeys.right)) {
+                                me.vel.x += controls.speed;
+                            }
+                        };
                         sprite.scripts.steps["Tile.js physics"] = me => {
                             if (me.physics.enable) {
                                 let onGround;

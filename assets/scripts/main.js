@@ -63,7 +63,10 @@ let game = Bagel.init({
                 physics: {
                     gravity: 0.2,
                     friction: 0.8,
-                    airResistance: 0.95
+                    airResistance: 0.95,
+                    controls: {
+                        speed: 0.2
+                    }
                 }
             }
         ],
